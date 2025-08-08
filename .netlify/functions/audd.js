@@ -23,7 +23,7 @@ exports.handler = async (event) => {
       );
     const fileHeader = Buffer.from(
       `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="audio"; filename="clip.webm"${CRLF}` +
+        `Content-Disposition: form-data; name="file"; filename="clip.webm"${CRLF}` +
         `Content-Type: audio/webm${CRLF}${CRLF}`
     );
     const closing = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
@@ -41,7 +41,6 @@ exports.handler = async (event) => {
       method: "POST",
       headers: {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        "Content-Length": String(body.length),
       },
       body,
     });
