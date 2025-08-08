@@ -170,10 +170,7 @@
       releaseDate=document.getElementById('releaseDate'),
       confidence=document.getElementById('confidence'),
       extLink=document.getElementById('extLink'),
-      lyrics=document.getElementById('lyrics'),
-      debug=document.getElementById('debug');
-
-    function dbg(l,v){const s=typeof v==='string'?v:(v?JSON.stringify(v):'');debug.textContent+=`[${new Date().toLocaleTimeString()}] ${l}: ${s}\\n`;debug.scrollTop=debug.scrollHeight;}
+      lyrics=document.getElementById('lyrics')
 
     let mediaRecorder,chunks=[];
     async function recordOnce(ms=15000){
@@ -225,10 +222,8 @@
           const top = gj.hits[0]; // { title, artist, url }
           // 2) Pull licensed lyrics via AudD using the match
           const audd = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(`${top.artist} ${top.title}`)}`);
-          dbg('AudD lyrics query', `${top.artist} ${top.title}`);
           if (audd.ok){
             const aj = await audd.json();
-            dbg('AudD lyrics response', aj);
             if (aj.result && aj.result.length){
               aj.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
               const best = aj.result[0];
@@ -240,17 +235,13 @@
         }
       }
       // 3) Fallback: straight to AudD lyrics with the raw query
-      dbg('AudD lyrics fallback query', q);
       let res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
       let json = res.ok ? await res.json() : null;
-      dbg('AudD lyrics fallback response', json);
       // If no result, try a cleaned-up version of the query (remove punctuation, limit to 10 words)
       if (!json || !json.result || !json.result.length) {
         const cleaned = q.replace(/[.,!?;:]/g, '').split(/\s+/).slice(0,10).join(' ');
-        dbg('AudD lyrics cleaned query', cleaned);
         res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(cleaned)}`);
         json = res.ok ? await res.json() : null;
-        dbg('AudD lyrics cleaned response', json);
       }
       if (!json || !json.result || !json.result.length) throw new Error('No lyrics found');
       json.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
@@ -279,22 +270,19 @@
     async function identifyPipeline(b){
       try{
         const r=await identifyWithAudD(b);
-        dbg('AudD match',`${r.title} — ${r.artist||r.artist_name||''}`);
         return r;
-      }catch(e){ dbg('AudD',e.message||String(e)); }
+      }catch(e){ ; }
       try{
         const t=await transcribeServer(b);
         if(t&&t.text){
           // Remove leading/trailing whitespace and newlines
           let text = t.text.replace(/[\r\n]+$/g, '').trim();
-          dbg('Whisper text', text || '(empty)');
           if(text.split(/\s+/).length>=3){
             const byText=await findLyricsByText(text);
-            dbg('Lyrics match',`${byText.title} — ${byText.artist}`);
             return byText;
           }
         }
-      }catch(e){ dbg('Whisper',e.message||String(e)); }
+      }catch(e){ }
       return {title:'No match',artist:'',lyrics:'Nothing found'};
     }
 
