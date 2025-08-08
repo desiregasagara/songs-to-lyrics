@@ -104,8 +104,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Sing for lyrics</h1>
-      <span class="pill">Private: via Netlify</span>
+      <h1>SingSearch: Find your song </h1>
     </header>
 
     <section class="card">
@@ -151,6 +150,16 @@
     tmp.innerHTML = withBreaks;
     return tmp.value;
     }
+    // Basic profanity filter (tune this list as you like)
+        const PROFANE_RE = /\b(fuck|shit|bitch|asshole|bastard|dick|pussy|cunt|motherfucker|nigga|slut|whore)\b/i;
+
+        function isVulgar(text){
+        if (!text) return false;
+        // decode before checking (APIs often return HTML entities)
+        const decoded = decodeLyrics(text).toLowerCase();
+        return PROFANE_RE.test(decoded);
+        }
+
 
     // JS: AudD first, Whisper fallback
     const micBtn=document.getElementById('micBtn'),
