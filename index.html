@@ -288,9 +288,10 @@
       try{
         const t=await transcribeServer(b);
         if(t&&t.text){
-          const text=t.text;
-          dbg('Whisper text',text||'(empty)');
-          if(text.split(/\\s+/).length>=3){
+          // Remove leading/trailing whitespace and newlines
+          let text = t.text.replace(/[\r\n]+$/g, '').trim();
+          dbg('Whisper text', text || '(empty)');
+          if(text.split(/\s+/).length>=3){
             const byText=await findLyricsByText(text);
             dbg('Lyrics match',`${byText.title} — ${byText.artist}`);
             return byText;
