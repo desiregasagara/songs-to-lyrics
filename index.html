@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hum to Lyrics</title>
+  <!--
+    Netlify setup (summary):
+    - netlify.toml with redirects to functions:
+        [build]
+          publish = "."
+          functions = "netlify/functions"
+        [[redirects]]
+          from = "/api/audd"
+          to = "/.netlify/functions/audd"
+          status = 200
+        [[redirects]]
+          from = "/api/audd-lyrics"
+          to = "/.netlify/functions/audd-lyrics"
+          status = 200
+        [[redirects]]
+          from = "/api/acr-identify"
+          to = "/.netlify/functions/acr-identify"
+          status = 200
+
+    - Functions to add (see previous message or project README):
+        netlify/functions/audd.js
+        netlify/functions/audd-lyrics.js
+        netlify/functions/acr-identify.js
+
+    - Environment variables in Netlify:
+        AUDD_TOKEN, ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, ACRCLOUD_ACCESS_SECRET
+
+    This client calls /api/* endpoints only—no secrets in the browser.
+  -->
+  <style>
+    :root { --bg:#0b0c10; --fg:#e5e7eb; --muted:#9aa3af; --accent:#4f46e5; --card:#111217; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 800px at 50% -10%, #171923, #0b0c10);color:var(--fg);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex;align-items:center;justify-content:center}
+    .app{width:min(900px,95vw);display:grid;gap:18px}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{font-size:1.2rem;margin:0;font-weight:600;letter-spacing:.2px}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:18px}
+    .controls{display:flex;align-items:center;justify-content:center;gap:16px}
+    .mic{width:96px;height:96px;border-radius:50%;border:none;background:conic-gradient(from 0deg,var(--accent),#6d28d9);color:white;display:grid;place-items:center;font-size:32px;cursor:pointer;box-shadow:0 10px 30px rgba(79,70,229,.35);transition:transform .12s ease, filter .12s ease}
+    .mic:hover{transform:translateY(-1px);filter:brightness(1.05)}
+    .mic:active{transform:translateY(1px)}
+    .mic.rec{animation:pulse 1s infinite}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(79,70,229,.55)}70%{box-shadow:0 0 0 18px rgba(79,70,229,0)}100%{box-shadow:0 0 0 0 rgba(79,70,229,0)}}
+    .status{font-size:.95rem;color:var(--muted);text-align:center}
+    .bar{height:52px;display:flex;align-items:flex-end;gap:6px;justify-content:center}
+    .bar span{width:6px;background:linear-gradient(#a78bfa,#4f46e5);border-radius:4px;height:8px;opacity:.4;transform-origin:bottom center;transition:height .08s linear, opacity .08s linear}
+    .bar.live span{opacity:1}
+    .result{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:start}
+    .result img{width:96px;height:96px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.08)}
+    .meta{display:grid;gap:4px}
+    .title{font-weight:700}
+    .artist{color:var(--muted)}
+    .confidence{font-size:.85rem;color:var(--ok)}
+    .lyrics{white-space:pre-wrap;max-height:38vh;overflow:auto;padding:12px;background:#0d0f15;border-radius:12px;border:1px solid rgba(255,255,255,.06)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .small{font-size:.85rem;color:var(--muted)}
+    .link{color:#93c5fd;text-decoration:none}
+    .error{color:var(--err)}
+    footer{color:var(--muted);font-size:.8rem;text-align:center}
+    .hidden{display:none}
+    label.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+    label.switch input{accent-color:var(--accent)}
+    .pill{padding:.25rem .5rem;border:1px solid rgba(255,255,255,.1);border-radius:999px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Hum to Lyrics</h1>
+      <div class="row small">
+        <label class="switch"><input id="humMode" type="checkbox"/> Prefer humming mode</label>
+        <span class="pill">Netlify</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="controls" id="controls">
+        <button id="micBtn" class="mic" title="Hold to record / Click to toggle" aria-pressed="false">🎤</button>
+      </div>
+      <p id="status" class="status">Tap the mic, hum or sing ~6–10 seconds, then release.</p>
+      <div class="bar" id="bar" aria-hidden="true"></div>
+    </div>
+
+    <div id="resultCard" class="card hidden">
+      <div class="result">
+        <img id="cover" alt="cover" src="" />
+        <div class="meta">
+          <div class="title" id="songTitle">—</div>
+          <div class="artist" id="songArtist">—</div>
+          <div class="row small">
+            <span id="album">&nbsp;</span>
+            <span id="releaseDate" class="pill"></span>
+            <span id="confidence" class="confidence"></span>
+          </div>
+          <div class="row small"><a id="extLink" class="link" target="_blank" rel="noreferrer noopener">Open in source</a></div>
+        </div>
+      </div>
+      <div id="lyrics" class="lyrics" style="margin-top:12px">Lyrics will appear here…</div>
+    </div>
+
+    <footer>
+      <div class="small">Recognition uses <strong>AudD</strong> by default. Optional humming mode via <strong>ACRCloud</strong>. All API calls go through <strong>Netlify Functions</strong> so no keys are in the browser.</div>
+    </footer>
+  </div>
+
+  <script>
+    const micBtn = document.getElementById('micBtn');
+    const statusEl = document.getElementById('status');
+    const bar = document.getElementById('bar');
+    const resultCard = document.getElementById('resultCard');
+    const cover = document.getElementById('cover');
+    const songTitle = document.getElementById('songTitle');
+    const songArtist = document.getElementById('songArtist');
+    const album = document.getElementById('album');
+    const releaseDate = document.getElementById('releaseDate');
+    const confidence = document.getElementById('confidence');
+    const extLink = document.getElementById('extLink');
+    const lyrics = document.getElementById('lyrics');
+    const humMode = document.getElementById('humMode');
+
+    // Tiny visualizer
+    for(let i=0;i<28;i++){const s=document.createElement('span');bar.appendChild(s)}
+    let audioCtx, analyser, mediaStream, mediaRecorder, chunks=[];
+
+    async function getMedia(){
+      if (mediaStream) return mediaStream;
+      return navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    }
+
+    function startViz(stream){
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      bar.classList.add('live');
+      function tick(){
+        if(!analyser) return;
+        analyser.getByteFrequencyData(data);
+        const w = bar.children.length;
+        for(let i=0;i<w;i++){
+          const slice = data[Math.floor(i*(data.length/w))];
+          const h = Math.max(6, (slice/255)*52);
+          bar.children[i].style.height = h+"px";
+        }
+        requestAnimationFrame(tick);
+      }
+      tick();
+    }
+
+    function stopViz(){
+      bar.classList.remove('live');
+      analyser = null;
+      for(const el of bar.children){ el.style.height = '6px'; el.style.opacity = .4 }
+    }
+
+    function setRecordingUI(rec){
+      micBtn.classList.toggle('rec', rec);
+      micBtn.setAttribute('aria-pressed', String(rec));
+      statusEl.textContent = rec ? 'Listening… hum or sing for a few seconds' : 'Processing…';
+    }
+
+    async function recordOnce(ms=9000){
+      const stream = await getMedia();
+      startViz(stream);
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      chunks = [];
+      return new Promise((resolve, reject)=>{
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onerror = e => reject(e.error || e);
+        mediaRecorder.onstop = ()=>{
+          stopViz();
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          resolve(blob);
+        };
+        mediaRecorder.start();
+        setRecordingUI(true);
+        setTimeout(()=>{ if(mediaRecorder && mediaRecorder.state==='recording') mediaRecorder.stop(); }, ms);
+      });
+    }
+
+    // === Netlify-backed identify calls ===
+    async function identifyWithAudD(blob){
+      const res = await fetch('/api/audd', { method: 'POST', headers: { 'Content-Type':'application/octet-stream' }, body: blob });
+      if (!res.ok) throw new Error('AudD proxy failed: '+res.status);
+      const json = await res.json();
+      if (!json || !json.result) throw new Error(json.error?.error_message || 'No match');
+      return json.result;
+    }
+
+    async function identifyWithACR(blob){
+      const res = await fetch('/api/acr-identify', { method: 'POST', headers: { 'Content-Type':'application/octet-stream' }, body: blob });
+      if(!res.ok) throw new Error('ACRCloud proxy failed');
+      const result = await res.json();
+      if (!result) throw new Error('No match');
+      return result;
+    }
+
+    function renderResult(r){
+      resultCard.classList.remove('hidden');
+      songTitle.textContent = r.title || 'Unknown title';
+      songArtist.textContent = r.artist || r.artist_name || 'Unknown artist';
+      album.textContent = r.album ? `• ${r.album}` : '';
+      releaseDate.textContent = r.release_date ? new Date(r.release_date).toISOString().slice(0,10) : '';
+      confidence.textContent = r.score ? `match ${(r.score*100).toFixed ? (r.score*100).toFixed(0) : r.score}%` : '';
+      cover.src = (r.spotify?.album?.images?.[0]?.url) || r.deezer?.album?.cover_big || r.apple_music?.artwork?.url?.replace('{w}x{h}', '200x200') || r.song_link || '';
+      extLink.href = r.song_link || r.spotify?.external_urls?.spotify || r.deezer?.link || '#';
+      extLink.textContent = extLink.href && extLink.href !== '#' ? 'Open in music app' : 'Open in source';
+      lyrics.textContent = r.lyrics?.lyrics || r.lyrics || 'No licensed lyrics available.';
+    }
+
+    async function go(){
+      try{
+        statusEl.textContent = 'Preparing microphone…';
+        const blob = await recordOnce(8000);
+        setRecordingUI(false);
+        statusEl.textContent = humMode.checked ? 'Identifying (humming)…' : 'Identifying…';
+        const result = humMode.checked ? await identifyWithACR(blob) : await identifyWithAudD(blob);
+
+        // If humming via ACR and no lyrics yet, try AudD lyrics lookup by artist+title (best-effort)
+        if (humMode.checked && result && (!result.lyrics || !result.lyrics.lyrics)){
+          try{
+            const q = encodeURIComponent(`${result.artist} ${result.title}`);
+            const res = await fetch(`/api/audd-lyrics?q=${q}`);
+            const j = await res.json();
+            if (j.result && j.result.length){ result.lyrics = { lyrics: j.result[0].lyrics } }
+          }catch{ /* ignore */ }
+        }
+
+        renderResult(result);
+        statusEl.textContent = 'Done.';
+      }catch(err){
+        console.error(err);
+        resultCard.classList.remove('hidden');
+        songTitle.textContent = 'No match';
+        songArtist.textContent = '';
+        album.textContent = '';
+        releaseDate.textContent = '';
+        confidence.textContent = '';
+        cover.src = '';
+        extLink.href = '#';
+        lyrics.innerHTML = '<span class="error">'+(err.message || 'Something went wrong')+'</span>';
+        statusEl.textContent = 'Tap the mic to try again.';
+        setRecordingUI(false);
+      }
+    }
+
+    micBtn.addEventListener('click', ()=>{
+      if (mediaRecorder && mediaRecorder.state === 'recording'){
+        mediaRecorder.stop();
+      } else {
+        go();
+      }
+    });
+  </script>
+</body>
+</html>

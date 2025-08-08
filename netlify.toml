@@ -1,0 +1,21 @@
+# netlify.toml
+
+[build]
+  publish = "."          # The folder to publish (root in this case)
+  functions = "netlify/functions"  # Path to your serverless functions
+
+# Redirect API routes to serverless functions
+[[redirects]]
+  from = "/api/audd"
+  to = "/.netlify/functions/audd"
+  status = 200
+
+[[redirects]]
+  from = "/api/audd-lyrics"
+  to = "/.netlify/functions/audd-lyrics"
+  status = 200
+
+[[redirects]]
+  from = "/api/acr-identify"
+  to = "/.netlify/functions/acr-identify"
+  status = 200
