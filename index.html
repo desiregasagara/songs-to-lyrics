@@ -228,8 +228,10 @@
           const top = gj.hits[0]; // { title, artist, url }
           // 2) Pull licensed lyrics via AudD using the match
           const audd = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(`${top.artist} ${top.title}`)}`);
+          dbg('AudD lyrics query', `${top.artist} ${top.title}`);
           if (audd.ok){
             const aj = await audd.json();
+            dbg('AudD lyrics response', aj);
             if (aj.result && aj.result.length){
               aj.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
               const best = aj.result[0];
@@ -241,10 +243,19 @@
         }
       }
       // 3) Fallback: straight to AudD lyrics with the raw query
-      const res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error('Lyrics lookup failed');
-      const json = await res.json();
-      if (!json.result || !json.result.length) throw new Error('No lyrics found');
+      dbg('AudD lyrics fallback query', q);
+      let res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
+      let json = res.ok ? await res.json() : null;
+      dbg('AudD lyrics fallback response', json);
+      // If no result, try a cleaned-up version of the query (remove punctuation, limit to 10 words)
+      if (!json || !json.result || !json.result.length) {
+        const cleaned = q.replace(/[.,!?;:]/g, '').split(/\s+/).slice(0,10).join(' ');
+        dbg('AudD lyrics cleaned query', cleaned);
+        res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(cleaned)}`);
+        json = res.ok ? await res.json() : null;
+        dbg('AudD lyrics cleaned response', json);
+      }
+      if (!json || !json.result || !json.result.length) throw new Error('No lyrics found');
       json.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
       const top = json.result[0];
       return { title: top.title || '(lyrics match)', artist: top.artist || '', lyrics: top.lyrics };
