@@ -20,8 +20,7 @@
     .input,.btn{border:1px solid rgba(255,255,255,.12);border-radius:12px;background:var(--card);color:var(--ink)}
     .input{flex:1;min-width:0;padding:10px 12px}.btn{padding:10px 14px;cursor:pointer}.btn:hover{filter:brightness(1.06)}
     .status{font-size:.95rem;color:var(--muted);margin:.25rem 0 0}
-    .results{display:grid;gap:10px}.result-card{display:grid;grid-template-columns:84px 1fr;gap:14px;align-items:start}
-    .cover{width:84px;height:84px;border-radius:10px;object-fit:cover;border:1px solid rgba(255,255,255,.08);background:#0d0f15}
+  .results{display:grid;gap:10px}.result-card{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
     .meta{display:grid;gap:4px}.title{font-weight:700}.artist{color:var(--muted)}.confidence{font-size:.85rem;color:var(--ok)}
     .lyrics{white-space:pre-wrap;max-height:40vh;overflow:auto;background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px}
     details{border:1px dashed rgba(255,255,255,.12);border-radius:12px} details[open]{border-style:solid} summary{cursor:pointer;padding:10px 12px;color:#93c5fd}
@@ -31,7 +30,7 @@
 </head>
 <body>
   <div class="wrap">
-    <header><h1>Hum to Lyrics</h1><span class="pill">Private: keys via Netlify</span></header>
+    <header><h1>Sing for lyrics</h1>
     <section class="card">
       <div class="controls">
         <button id="micBtn" class="mic" title="Tap to record / tap again to stop" aria-pressed="false">🎤</button>
@@ -43,14 +42,24 @@
       </div>
     </section>
     <section id="resultCard" class="card results" hidden>
-      <div class="result-card"><img id="cover" class="cover" alt="cover"/><div class="meta"><div class="title" id="songTitle">—</div><div class="artist" id="songArtist">—</div><div class="group" style="gap:6px"><span id="album" class="pill" hidden></span><span id="releaseDate" class="pill" hidden></span><span id="confidence" class="confidence"></span></div><a id="extLink" class="pill" target="_blank" rel="noreferrer noopener" hidden>Open in source</a></div></div>
+  <div class="result-card"><div class="meta"><div class="title" id="songTitle">—</div><div class="artist" id="songArtist">—</div><div class="group" style="gap:6px"><span id="album" class="pill" hidden></span><span id="releaseDate" class="pill" hidden></span><span id="confidence" class="confidence"></span></div><a id="extLink" class="pill" target="_blank" rel="noreferrer noopener" hidden>Open in source</a></div></div>
       <div id="lyrics" class="lyrics">Lyrics will appear here…</div>
     </section>
     <details id="debugPanel" class="card"><summary>Debug</summary><pre id="debug"></pre></details>
   </div>
   <script>
+    function decodeLyrics(s){
+  if (!s) return '';
+  // Convert line breaks <br> to newlines if they appear
+  const withBreaks = String(s).replace(/<br\s*\/?>/gi, '\n');
+  // Use a <textarea> to decode HTML entities safely
+  const tmp = document.createElement('textarea');
+  tmp.innerHTML = withBreaks;
+  return tmp.value;
+}
+
     // JS: AudD first, Whisper fallback
-    const micBtn=document.getElementById('micBtn'),statusEl=document.getElementById('status'),lyricQuery=document.getElementById('lyricQuery'),searchBtn=document.getElementById('searchBtn'),resultCard=document.getElementById('resultCard'),cover=document.getElementById('cover'),songTitle=document.getElementById('songTitle'),songArtist=document.getElementById('songArtist'),album=document.getElementById('album'),releaseDate=document.getElementById('releaseDate'),confidence=document.getElementById('confidence'),extLink=document.getElementById('extLink'),lyrics=document.getElementById('lyrics'),debug=document.getElementById('debug');
+  const micBtn=document.getElementById('micBtn'),statusEl=document.getElementById('status'),lyricQuery=document.getElementById('lyricQuery'),searchBtn=document.getElementById('searchBtn'),resultCard=document.getElementById('resultCard'),songTitle=document.getElementById('songTitle'),songArtist=document.getElementById('songArtist'),album=document.getElementById('album'),releaseDate=document.getElementById('releaseDate'),confidence=document.getElementById('confidence'),extLink=document.getElementById('extLink'),lyrics=document.getElementById('lyrics'),debug=document.getElementById('debug');
     function dbg(l,v){const s=typeof v==='string'?v:(v?JSON.stringify(v):'');debug.textContent+=`[${new Date().toLocaleTimeString()}] ${l}: ${s}\n`;debug.scrollTop=debug.scrollHeight;}
     let mediaRecorder,chunks=[];async function recordOnce(ms=15000){const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});return new Promise((res,rej)=>{mediaRecorder=new MediaRecorder(s,{mimeType:'audio/webm'});chunks=[];mediaRecorder.ondataavailable=e=>chunks.push(e.data);mediaRecorder.onerror=e=>rej(e.error||e);mediaRecorder.onstop=()=>{const b=new Blob(chunks,{type:'audio/webm'});s.getTracks().forEach(t=>t.stop());res(b);};mediaRecorder.start();setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();},ms);});}
     function setMeta(r){
@@ -69,39 +78,14 @@
     ? `match ${(r.score*100).toFixed ? (r.score*100).toFixed(0) : r.score}%`
     : '';
 
-  // ----- Cover art: try multiple sources -----
-  function pickCover(obj){
-    const apple = obj?.apple_music?.artwork?.url;
-    let candidate =
-      obj?.cover ||                                         // from Genius (our new search)
-      obj?.spotify?.album?.images?.[0]?.url ||              // Spotify
-      obj?.deezer?.album?.cover_big ||                      // Deezer
-      (apple ? apple
-        .replace('{w}x{h}','200x200')
-        .replace('{c}','')          // remove cropping token if present
-        .replace('{f}','jpg')       // ensure a file extension
-        : '');
-
-    if (candidate && candidate.startsWith('http://')) {
-      candidate = candidate.replace('http://','https://');  // avoid mixed-content blocks
-    }
-    return candidate || '';
-  }
-
-  const img = pickCover(r);
-  if (img){
-    cover.src = img;
-    cover.alt = r.title ? `${r.title} cover` : 'cover';
-  } else {
-    cover.removeAttribute('src');
-    cover.alt = 'no cover available';
-  }
+  // Cover image removed
 
   // Best external link: Genius → Spotify → Deezer → AudD link
   const link = r.genius_url || r.spotify?.external_urls?.spotify || r.deezer?.link || r.song_link || '';
   if (link){ extLink.href = link; extLink.hidden = false; } else extLink.hidden = true;
 
-  lyrics.textContent = r.lyrics?.lyrics || r.lyrics || 'No licensed lyrics available.';
+const rawLyrics = r.lyrics?.lyrics || r.lyrics || '';
+lyrics.textContent = decodeLyrics(rawLyrics);
 }
 async function findLyricsByText(q){
   // 1) Strong match from Genius (title/artist)
@@ -121,13 +105,12 @@ async function findLyricsByText(q){
             title: top.title,
             artist: top.artist,
             lyrics: best.lyrics,
-            genius_url: top.url,
-            cover: top.thumb
+            genius_url: top.url
           };
         }
       }
       // If AudD didn’t return lyrics, still return the Genius match (no lyrics)
-      return { title: top.title, artist: top.artist, lyrics: 'Lyrics not available for this match.', genius_url: top.url, cover: top.thumb };
+  return { title: top.title, artist: top.artist, lyrics: 'Lyrics not available for this match.', genius_url: top.url };
     }
   }
 
