@@ -6,33 +6,54 @@
 <title>Hum to Lyrics – Vocal & Lyric Rescue</title>
 <style>
   body { font-family: system-ui, sans-serif; padding: 1rem; background: #0b0c10; color: #e5e7eb; }
-  button, input { padding: 0.75rem 1rem; font-size: 1rem; border-radius: .5rem; border: none; }
+  button, input, select { padding: 0.75rem 1rem; font-size: 1rem; border-radius: .5rem; border: none; }
   button { cursor: pointer; }
   .rec { background: #4f46e5; color: white; animation: pulse 1s infinite; }
   @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(79,70,229,.6);} 70%{box-shadow:0 0 0 20px rgba(79,70,229,0);} 100%{box-shadow:0 0 0 0 rgba(79,70,229,0);} }
   .search { margin-top: 1rem; display: flex; gap: 0.5rem; }
-  input { flex: 1; border: 1px solid rgba(255,255,255,0.2); background: #111217; color: #e5e7eb; }
+  input, select { flex: 1; border: 1px solid rgba(255,255,255,0.2); background: #111217; color: #e5e7eb; }
   pre { white-space: pre-wrap; background: #111217; padding: 1rem; border-radius: .5rem; margin-top: 1rem; }
+  #debugPanel{margin-top:.75rem;background:#141622;border:1px solid rgba(255,255,255,.1);border-radius:.5rem}
+  #debugPanel header{padding:.5rem .75rem;font-weight:600;font-size:.9rem;opacity:.8}
+  #debug{max-height:24vh;overflow:auto;margin:0;padding:.75rem;background:transparent;color:#93c5fd;font-size:0.85rem}
 </style>
 </head>
 <body>
 <h1>Hum to Lyrics</h1>
 <p id="status">Tap the mic, hum or sing for ~8 seconds.</p>
 <label><input type="checkbox" id="lyricRescue" checked> Enable Lyric Rescue</label>
+<select id="langSel">
+  <option value="auto" selected>Auto language</option>
+  <option value="en-GB">English (UK)</option>
+  <option value="en-US">English (US)</option>
+</select>
 <button id="micBtn">🎤</button>
 <div class="search">
   <input id="lyricQuery" placeholder="Or type a lyric snippet…">
   <button id="searchBtn">Search</button>
+</div>
+<div id="debugPanel">
+  <header>Debug</header>
+  <pre id="debug"></pre>
 </div>
 <pre id="output"></pre>
 <script>
 const micBtn = document.getElementById('micBtn');
 const statusEl = document.getElementById('status');
 const output = document.getElementById('output');
+const debugEl = document.getElementById('debug');
 const lyricRescue = document.getElementById('lyricRescue');
 const lyricQuery = document.getElementById('lyricQuery');
 const searchBtn = document.getElementById('searchBtn');
+const langSel = document.getElementById('langSel');
 let mediaRecorder, chunks = [];
+
+function dbg(label, val){
+  if(!debugEl) return;
+  const s = typeof val === 'string' ? val : (val ? JSON.stringify(val) : '');
+  debugEl.textContent += `[${new Date().toLocaleTimeString()}] ${label}: ${s}\n`;
+  debugEl.scrollTop = debugEl.scrollHeight;
+}
 
 async function recordOnce(ms=8000) {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -48,6 +69,7 @@ async function recordOnce(ms=8000) {
 }
 
 async function findLyricsByText(q) {
+  dbg('Lyrics query', q);
   const res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error('Lyrics lookup failed');
   const json = await res.json();
@@ -64,73 +86,94 @@ async function lyricRescueListen(ms=8000) {
     let transcript = '';
     r.continuous = false;
     r.interimResults = true;
-    r.lang = navigator.language || 'en-US';
+    r.lang = (langSel.value !== 'auto') ? langSel.value : (navigator.language || 'en-US');
     const timer = setTimeout(()=>{ try{ r.stop(); }catch{} }, ms);
     r.onresult = e => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) transcript += e.results[i][0].transcript + ' ';
       }
-      statusEl.textContent = 'Heard: ' + transcript.trim();
+      dbg('Browser SR heard', transcript.trim());
     };
     r.onerror = e => { clearTimeout(timer); reject(new Error(e.error||'Speech error')); };
     r.onend = () => { clearTimeout(timer); resolve(transcript.trim()); };
-    try { r.start(); statusEl.textContent = 'Listening for lyrics…'; }
+    try { debugEl.textContent = ''; r.start(); statusEl.textContent = 'Listening for lyrics…'; }
     catch(err){ clearTimeout(timer); reject(err); }
   });
 }
 
-async function identify(blob) {
+function cleanTranscript(t){
+  const fillers = ['uh','um','erm','like','you know','hmm','ah'];
+  let s = String(t||'');
+  for (const f of fillers){ s = s.replaceAll(' '+f+' ',' '); }
+  while (s.indexOf('  ') !== -1) s = s.replaceAll('  ',' ');
+  return s.trim();
+}
+
+async function transcribeServer(blob){
+  const fd = new FormData();
+  fd.append('file', blob, 'clip.webm');
+  const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error('Transcribe failed '+r.status);
+  return r.json();
+}
+
+async function identify2(blob) {
+  dbg('Identify','start');
   try {
+    dbg('AudD request', `audio ${blob.size} bytes`);
     const res = await fetch('/api/audd', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
     if (res.ok) {
       const data = await res.json();
-      if (data && data.result) return data.result;
+      if (data && data.result){ dbg('AudD match', `${data.result.title} — ${data.result.artist || data.result.artist_name || ''}`); return data.result; }
+      dbg('AudD response', data?.error?.error_message || 'no result');
+    } else {
+      dbg('AudD http', res.status + ' ' + res.statusText);
     }
-  } catch(e) {
-    console.warn('AudD failed', e);
-  }
+  } catch(e) { dbg('AudD error', e.message || String(e)); }
+
   if (lyricRescue.checked) {
     try {
-      const heard = await lyricRescueListen(8000);
-      if (heard.split(/\s+/).length >= 3) {
-        return await findLyricsByText(heard);
+      const heardRaw = await lyricRescueListen(11000);
+      const heard = heardRaw;
+      dbg('Browser SR heard', heard || '(empty)');
+      if (heard && heard.split(/\s+/).length >= 3) {
+        const byText = await findLyricsByText(heard);
+        dbg('Lyrics match', `${byText.title || '(lyrics match)'} — ${byText.artist || ''}`);
+        return byText;
       }
-    } catch(e) {
-      console.warn('Lyric rescue failed', e);
-    }
+    } catch(e) { dbg('Lyric rescue error', e.message || String(e)); }
   }
+
+  try {
+    dbg('Whisper request', `audio ${blob.size} bytes`);
+    const t = await transcribeServer(blob);
+    if (t && t.text) {
+      const text = cleanTranscript(t.text);
+      dbg('Whisper text', text || '(empty)');
+      if (text.split(/\s+/).length >= 3) {
+        const byText = await findLyricsByText(text);
+        dbg('Lyrics match', `${byText.title || '(lyrics match)'} — ${byText.artist || ''}`);
+        return byText;
+      }
+    }
+  } catch(e) { dbg('Whisper error', e.message || String(e)); }
+
+  dbg('Identify','no match');
   return { title: 'No match', artist: '', lyrics: 'Nothing found' };
-
-  // Server STT fallback: send raw blob to Whisper, then search lyrics
-try {
-  const fd = new FormData();
-  fd.append('file', blob, 'clip.webm'); // content-type auto-set by browser
-  const tRes = await fetch('/api/transcribe', { method: 'POST', body: fd });
-  if (tRes.ok) {
-    const tData = await tRes.json();
-    if (tData?.text) {
-      const l = await findLyricsByText(tData.text);
-      return l; // { title, artist, lyrics, ... }
-    }
-  }
-} catch (e) {
-  console.warn('Whisper fallback failed', e);
-}
-
 }
 
 async function go() {
   try {
+    debugEl.textContent = '';
     micBtn.classList.add('rec');
     statusEl.textContent = 'Recording…';
     const blob = await recordOnce();
     micBtn.classList.remove('rec');
     statusEl.textContent = 'Processing…';
-    const result = await identify(blob);
+    const result = await identify2(blob);
     output.textContent = JSON.stringify(result, null, 2);
     statusEl.textContent = 'Done';
   } catch (err) {
-    console.error(err);
     statusEl.textContent = 'Error: ' + err.message;
   }
 }
@@ -158,4 +201,3 @@ micBtn.onclick = () => {
 </script>
 </body>
 </html>
-
