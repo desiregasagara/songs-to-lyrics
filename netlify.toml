@@ -24,3 +24,8 @@
   from = "/api/transcribe"
   to = "/.netlify/functions/transcribe"
   status = 200
+
+[[redirects]]
+  from = "/api/genius-search"
+  to = "/.netlify/functions/genius-search"
+  status = 200
