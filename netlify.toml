@@ -2,7 +2,7 @@
 
 [build]
   publish = "."          # The folder to publish (root in this case)
-  functions = "netlify/functions"  # Path to your serverless functions
+  functions = ".netlify/functions"  # Path to your serverless functions
 
 # Redirect API routes to serverless functions
 [[redirects]]
