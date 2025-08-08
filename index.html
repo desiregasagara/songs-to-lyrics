@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,131 +6,312 @@
   <title>Hum to Lyrics</title>
   <meta name="theme-color" content="#0b0c10"/>
   <style>
-    /* Same styling as before */
     :root{ --bg:#0b0c10; --bg2:#0f1117; --card:#121420; --ink:#e5e7eb; --muted:#9aa3af; --accent:#6d5efc; --accent-2:#9b8bff; --ok:#10b981; --err:#ef4444; }
-    *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:radial-gradient(1200px 800px at 50% -10%, #171923 0%, var(--bg) 60%);color:var(--ink);font:16px/1.45 system-ui;display:grid;place-items:center;padding:28px}
-    .wrap{width:min(920px,96vw);display:grid;gap:16px} header{display:flex;align-items:center;justify-content:space-between} h1{margin:0;font-weight:700;font-size:1.35rem}
+    *{box-sizing:border-box}
+
+    /* Mobile-first vertical layout */
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:radial-gradient(1200px 800px at 50% -10%, #171923 0%, var(--bg) 60%);
+      color:var(--ink);
+      font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, Cantarell, Noto Sans, sans-serif;
+    }
+
+    .wrap{
+      max-width:680px;
+      width:100%;
+      margin:0 auto;
+      padding:20px 16px 28px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    h1{margin:0;font-weight:700;font-size:1.35rem}
     .pill{font-size:.85rem;color:var(--muted);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:.25rem .6rem}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px}
-    .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-    .mic{--size:92px;width:var(--size);height:var(--size);border:none;border-radius:50%;background:conic-gradient(from 0deg,var(--accent),var(--accent-2));box-shadow:0 14px 34px rgba(109,94,252,.35);color:white;display:grid;place-items:center;font-size:34px;cursor:pointer;transition:transform .12s ease,filter .12s ease}
-    .mic:hover{transform:translateY(-1px);filter:brightness(1.06)} .mic:active{transform:translateY(1px)} .mic.rec{animation:pulse 1s infinite}
-    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(109,94,252,.55)}70%{box-shadow:0 0 0 18px rgba(109,94,252,0)}100%{box-shadow:0 0 0 0 rgba(109,94,252,0)}}
+
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:16px;
+    }
+
+    .controls{display:flex;justify-content:center}
+    .mic{
+      --size:92px;
+      width:var(--size);height:var(--size);
+      border:none;border-radius:50%;
+      background:conic-gradient(from 0deg,var(--accent),var(--accent-2));
+      box-shadow:0 14px 34px rgba(109,94,252,.35);
+      color:#fff;display:grid;place-items:center;
+      font-size:34px;cursor:pointer;
+      transition:transform .12s ease,filter .12s ease;
+    }
+    .mic:hover{transform:translateY(-1px);filter:brightness(1.06)}
+    .mic:active{transform:translateY(1px)}
+    .mic.rec{animation:pulse 1s infinite}
+    @keyframes pulse{
+      0%{box-shadow:0 0 0 0 rgba(109,94,252,.55)}
+      70%{box-shadow:0 0 0 18px rgba(109,94,252,0)}
+      100%{box-shadow:0 0 0 0 rgba(109,94,252,0)}
+    }
+
     .input,.btn{border:1px solid rgba(255,255,255,.12);border-radius:12px;background:var(--card);color:var(--ink)}
-    .input{flex:1;min-width:0;padding:10px 12px}.btn{padding:10px 14px;cursor:pointer}.btn:hover{filter:brightness(1.06)}
+    .input{flex:1;min-width:0;padding:12px 14px}
+    .btn{padding:12px 14px;cursor:pointer}
+    .btn:hover{filter:brightness(1.06)}
+
+    .row{display:flex;gap:10px;align-items:center}
     .status{font-size:.95rem;color:var(--muted);margin:.25rem 0 0}
-  .results{display:grid;gap:10px}.result-card{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
-    .meta{display:grid;gap:4px}.title{font-weight:700}.artist{color:var(--muted)}.confidence{font-size:.85rem;color:var(--ok)}
-    .lyrics{white-space:pre-wrap;max-height:40vh;overflow:auto;background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px}
-    details{border:1px dashed rgba(255,255,255,.12);border-radius:12px} details[open]{border-style:solid} summary{cursor:pointer;padding:10px 12px;color:#93c5fd}
+
+    .results{display:flex;flex-direction:column;gap:12px}
+    .result-card{display:flex;flex-direction:column;gap:8px}
+    .meta{display:grid;gap:4px}
+    .title{font-weight:700}
+    .artist{color:var(--muted)}
+    .confidence{font-size:.85rem;color:var(--ok)}
+
+    .lyrics{
+      white-space:pre-wrap;
+      max-height:48vh;
+      overflow:auto;
+      background:var(--bg2);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:12px;
+    }
+
+    details{border:1px dashed rgba(255,255,255,.12);border-radius:12px}
+    details[open]{border-style:solid}
+    summary{cursor:pointer;padding:10px 12px;color:#93c5fd}
     #debug{font-size:.85rem;color:#93c5fd;margin:0;padding:12px;border-top:1px dashed rgba(255,255,255,.12);max-height:26vh;overflow:auto}
-    @media(max-width:520px){.result-card{grid-template-columns:64px 1fr}.cover{width:64px;height:64px}.mic{--size:84px;font-size:30px}}
+
+    /* Small screens: slightly larger tap target and full-width rows */
+    @media (max-width:520px){
+      .mic{--size:96px;font-size:32px}
+      .row{flex-direction:column;align-items:stretch}
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header><h1>Sing for lyrics</h1>
+    <header>
+      <h1>Sing for lyrics</h1>
+      <span class="pill">Private: via Netlify</span>
+    </header>
+
     <section class="card">
       <div class="controls">
         <button id="micBtn" class="mic" title="Tap to record / tap again to stop" aria-pressed="false">🎤</button>
       </div>
-      <p id="status" class="status">Tap the mic and sing a line (15s).</p>
-      <div class="group" style="margin-top:10px">
+      <p id="status" class="status" aria-live="polite">Tap the mic and sing a line (15s).</p>
+
+      <div class="row" style="margin-top:10px">
         <input id="lyricQuery" class="input" placeholder="Or paste a lyric snippet…"/>
         <button id="searchBtn" class="btn">Search</button>
       </div>
     </section>
+
     <section id="resultCard" class="card results" hidden>
-  <div class="result-card"><div class="meta"><div class="title" id="songTitle">—</div><div class="artist" id="songArtist">—</div><div class="group" style="gap:6px"><span id="album" class="pill" hidden></span><span id="releaseDate" class="pill" hidden></span><span id="confidence" class="confidence"></span></div><a id="extLink" class="pill" target="_blank" rel="noreferrer noopener" hidden>Open in source</a></div></div>
+      <div class="result-card">
+        <div class="meta">
+          <div class="title" id="songTitle">—</div>
+          <div class="artist" id="songArtist">—</div>
+          <div class="row" style="gap:6px">
+            <span id="album" class="pill" hidden></span>
+            <span id="releaseDate" class="pill" hidden></span>
+            <span id="confidence" class="confidence"></span>
+          </div>
+          <a id="extLink" class="pill" target="_blank" rel="noreferrer noopener" hidden>Open in source</a>
+        </div>
+      </div>
       <div id="lyrics" class="lyrics">Lyrics will appear here…</div>
     </section>
-    <details id="debugPanel" class="card"><summary>Debug</summary><pre id="debug"></pre></details>
+
+    <details id="debugPanel" class="card">
+      <summary>Debug</summary>
+      <pre id="debug"></pre>
+    </details>
   </div>
+
   <script>
+    // Decode HTML entities and <br> from lyrics safely
     function decodeLyrics(s){
-  if (!s) return '';
-  // Convert line breaks <br> to newlines if they appear
-  const withBreaks = String(s).replace(/<br\s*\/?>/gi, '\n');
-  // Use a <textarea> to decode HTML entities safely
-  const tmp = document.createElement('textarea');
-  tmp.innerHTML = withBreaks;
-  return tmp.value;
-}
+    if (!s) return '';
+    const withBreaks = String(s).replace(/<br\s*\/?>(?=\s*\n?)/gi, '\n');
+    const tmp = document.createElement('textarea');
+    tmp.innerHTML = withBreaks;
+    return tmp.value;
+    }
 
     // JS: AudD first, Whisper fallback
-  const micBtn=document.getElementById('micBtn'),statusEl=document.getElementById('status'),lyricQuery=document.getElementById('lyricQuery'),searchBtn=document.getElementById('searchBtn'),resultCard=document.getElementById('resultCard'),songTitle=document.getElementById('songTitle'),songArtist=document.getElementById('songArtist'),album=document.getElementById('album'),releaseDate=document.getElementById('releaseDate'),confidence=document.getElementById('confidence'),extLink=document.getElementById('extLink'),lyrics=document.getElementById('lyrics'),debug=document.getElementById('debug');
-    function dbg(l,v){const s=typeof v==='string'?v:(v?JSON.stringify(v):'');debug.textContent+=`[${new Date().toLocaleTimeString()}] ${l}: ${s}\n`;debug.scrollTop=debug.scrollHeight;}
-    let mediaRecorder,chunks=[];async function recordOnce(ms=15000){const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});return new Promise((res,rej)=>{mediaRecorder=new MediaRecorder(s,{mimeType:'audio/webm'});chunks=[];mediaRecorder.ondataavailable=e=>chunks.push(e.data);mediaRecorder.onerror=e=>rej(e.error||e);mediaRecorder.onstop=()=>{const b=new Blob(chunks,{type:'audio/webm'});s.getTracks().forEach(t=>t.stop());res(b);};mediaRecorder.start();setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();},ms);});}
+    const micBtn=document.getElementById('micBtn'),
+      statusEl=document.getElementById('status'),
+      lyricQuery=document.getElementById('lyricQuery'),
+      searchBtn=document.getElementById('searchBtn'),
+      resultCard=document.getElementById('resultCard'),
+      songTitle=document.getElementById('songTitle'),
+      songArtist=document.getElementById('songArtist'),
+      album=document.getElementById('album'),
+      releaseDate=document.getElementById('releaseDate'),
+      confidence=document.getElementById('confidence'),
+      extLink=document.getElementById('extLink'),
+      lyrics=document.getElementById('lyrics'),
+      debug=document.getElementById('debug');
+
+    function dbg(l,v){const s=typeof v==='string'?v:(v?JSON.stringify(v):'');debug.textContent+=`[${new Date().toLocaleTimeString()}] ${l}: ${s}\\n`;debug.scrollTop=debug.scrollHeight;}
+
+    let mediaRecorder,chunks=[];
+    async function recordOnce(ms=15000){
+      const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      return new Promise((res,rej)=>{
+        mediaRecorder=new MediaRecorder(s,{mimeType:'audio/webm'});
+        chunks=[];
+        mediaRecorder.ondataavailable=e=>chunks.push(e.data);
+        mediaRecorder.onerror=e=>rej(e.error||e);
+        mediaRecorder.onstop=()=>{
+          const b=new Blob(chunks,{type:'audio/webm'});
+          s.getTracks().forEach(t=>t.stop());
+          res(b);
+        };
+        mediaRecorder.start();
+        setTimeout(()=>{if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();},ms);
+      });
+    }
+
     function setMeta(r){
-  songTitle.textContent = r.title || 'Unknown title';
-  songArtist.textContent = r.artist || r.artist_name || 'Unknown artist';
+      songTitle.textContent = r.title || 'Unknown title';
+      songArtist.textContent = r.artist || r.artist_name || 'Unknown artist';
 
-  if (r.album){ album.textContent = r.album; album.hidden = false } else album.hidden = true;
+      if (r.album){ album.textContent = r.album; album.hidden = false } else album.hidden = true;
 
-  if (r.release_date){
-    try { releaseDate.textContent = new Date(r.release_date).toISOString().slice(0,10); }
-    catch { releaseDate.textContent = r.release_date; }
-    releaseDate.hidden = false;
-  } else releaseDate.hidden = true;
+      if (r.release_date){
+        try { releaseDate.textContent = new Date(r.release_date).toISOString().slice(0,10); }
+        catch { releaseDate.textContent = r.release_date; }
+        releaseDate.hidden = false;
+      } else releaseDate.hidden = true;
 
-  confidence.textContent = r.score
-    ? `match ${(r.score*100).toFixed ? (r.score*100).toFixed(0) : r.score}%`
-    : '';
+      confidence.textContent = r.score
+        ? `match ${(r.score*100).toFixed ? (r.score*100).toFixed(0) : r.score}%`
+        : '';
 
-  // Cover image removed
+      const link = r.genius_url || r.spotify?.external_urls?.spotify || r.deezer?.link || r.song_link || '';
+      if (link){ extLink.href = link; extLink.hidden = false; } else extLink.hidden = true;
 
-  // Best external link: Genius → Spotify → Deezer → AudD link
-  const link = r.genius_url || r.spotify?.external_urls?.spotify || r.deezer?.link || r.song_link || '';
-  if (link){ extLink.href = link; extLink.hidden = false; } else extLink.hidden = true;
+      const rawLyrics = r.lyrics?.lyrics || r.lyrics || '';
+      lyrics.textContent = decodeLyrics(rawLyrics);
+    }
 
-const rawLyrics = r.lyrics?.lyrics || r.lyrics || '';
-lyrics.textContent = decodeLyrics(rawLyrics);
-}
-async function findLyricsByText(q){
-  // 1) Strong match from Genius (title/artist)
-  const g = await fetch(`/api/genius-search?q=${encodeURIComponent(q)}`);
-  if (g.ok){
-    const gj = await g.json();
-    if (gj.hits && gj.hits.length){
-      const top = gj.hits[0]; // { title, artist, url, thumb }
-      // 2) Pull licensed lyrics via AudD using the match
-      const audd = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(`${top.artist} ${top.title}`)}`);
-      if (audd.ok){
-        const aj = await audd.json();
-        if (aj.result && aj.result.length){
-          aj.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
-          const best = aj.result[0];
-          return {
-            title: top.title,
-            artist: top.artist,
-            lyrics: best.lyrics,
-            genius_url: top.url
-          };
+    async function findLyricsByText(q){
+      // 1) Strong match from Genius (title/artist) — gospel bias via server
+      const g = await fetch(`/api/genius-search?q=${encodeURIComponent(q)}&genre=gospel`);
+      if (g.ok){
+        const gj = await g.json();
+        if (gj.hits && gj.hits.length){
+          const top = gj.hits[0]; // { title, artist, url }
+          // 2) Pull licensed lyrics via AudD using the match
+          const audd = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(`${top.artist} ${top.title}`)}`);
+          if (audd.ok){
+            const aj = await audd.json();
+            if (aj.result && aj.result.length){
+              aj.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
+              const best = aj.result[0];
+              return { title: top.title, artist: top.artist, lyrics: best.lyrics, genius_url: top.url };
+            }
+          }
+          // Fallback: return Genius match without lyrics
+          return { title: top.title, artist: top.artist, lyrics: 'Lyrics not available for this match.', genius_url: top.url };
         }
       }
-      // If AudD didn’t return lyrics, still return the Genius match (no lyrics)
-  return { title: top.title, artist: top.artist, lyrics: 'Lyrics not available for this match.', genius_url: top.url };
+      // 3) Fallback: straight to AudD lyrics with the raw query
+      const res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error('Lyrics lookup failed');
+      const json = await res.json();
+      if (!json.result || !json.result.length) throw new Error('No lyrics found');
+      json.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
+      const top = json.result[0];
+      return { title: top.title || '(lyrics match)', artist: top.artist || '', lyrics: top.lyrics };
     }
-  }
 
-  // 3) Fallback: straight to AudD lyrics with the raw query
-  const res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error('Lyrics lookup failed');
-  const json = await res.json();
-  if (!json.result || !json.result.length) throw new Error('No lyrics found');
-  json.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
-  const top = json.result[0];
-  return { title: top.title || '(lyrics match)', artist: top.artist || '', lyrics: top.lyrics };
-}
+    async function identifyWithAudD(b){
+      const r=await fetch('/api/audd',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:b});
+      if(!r.ok)throw new Error('AudD proxy failed: '+r.status);
+      const j=await r.json();
+      if(!j||!j.result)throw new Error(j.error?.error_message||'No match');
+      return j.result;
+    }
 
-    async function identifyWithAudD(b){const r=await fetch('/api/audd',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:b});if(!r.ok)throw new Error('AudD proxy failed: '+r.status);const j=await r.json();if(!j||!j.result)throw new Error(j.error?.error_message||'No match');return j.result;}
-    function cleanTranscript(t){return String(t||'').replace(/\b(uh|um|erm|like|you know|hmm|ah)\b/gi,'').replace(/\s{2,}/g,' ').trim();}
-    async function transcribeServer(b){const r=await fetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:b});if(!r.ok)throw new Error('Transcribe failed '+r.status);return r.json();}
-    async function identifyPipeline(b){try{const r=await identifyWithAudD(b);dbg('AudD match',`${r.title} — ${r.artist||r.artist_name||''}`);return r;}catch(e){dbg('AudD',e.message||String(e));}try{const t=await transcribeServer(b);if(t&&t.text){const text=cleanTranscript(t.text);dbg('Whisper text',text||'(empty)');if(text.split(/\s+/).length>=3){const byText=await findLyricsByText(text);dbg('Lyrics match',`${byText.title} — ${byText.artist}`);return byText;}}}catch(e){dbg('Whisper',e.message||String(e));}return{title:'No match',artist:'',lyrics:'Nothing found'};}
-    async function go(){try{debug.textContent='';micBtn.classList.add('rec');micBtn.setAttribute('aria-pressed','true');statusEl.textContent='Recording…';const b=await recordOnce();micBtn.classList.remove('rec');micBtn.setAttribute('aria-pressed','false');statusEl.textContent='Identifying…';const r=await identifyPipeline(b);setMeta(r);resultCard.hidden=false;statusEl.textContent='Done.';}catch(err){statusEl.textContent='Error: '+(err.message||'Unknown error');}}
-    micBtn.addEventListener('click',()=>{if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop();else go();});
-    searchBtn.addEventListener('click',async()=>{const q=(lyricQuery.value||'').trim();if(!q)return;statusEl.textContent='Searching lyrics…';try{const r=await findLyricsByText(q);setMeta(r);resultCard.hidden=false;statusEl.textContent='Found by lyrics.';}catch{statusEl.textContent='No lyrics found.';}});
-    lyricQuery.addEventListener('keydown',e=>{if(e.key==='Enter')searchBtn.click();});
+    function cleanTranscript(t){
+      return String(t||'').replace(/\\b(uh|um|erm|like|you know|hmm|ah)\\b/gi,'').replace(/\\s{2,}/g,' ').trim();
+    }
+
+    async function transcribeServer(b){
+      const r=await fetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:b});
+      if(!r.ok)throw new Error('Transcribe failed '+r.status);
+      return r.json();
+    }
+
+    async function identifyPipeline(b){
+      try{
+        const r=await identifyWithAudD(b);
+        dbg('AudD match',`${r.title} — ${r.artist||r.artist_name||''}`);
+        return r;
+      }catch(e){ dbg('AudD',e.message||String(e)); }
+      try{
+        const t=await transcribeServer(b);
+        if(t&&t.text){
+          const text=t.text;
+          dbg('Whisper text',text||'(empty)');
+          if(text.split(/\\s+/).length>=3){
+            const byText=await findLyricsByText(text);
+            dbg('Lyrics match',`${byText.title} — ${byText.artist}`);
+            return byText;
+          }
+        }
+      }catch(e){ dbg('Whisper',e.message||String(e)); }
+      return {title:'No match',artist:'',lyrics:'Nothing found'};
+    }
+
+    async function go(){
+      try{
+        debug.textContent='';
+        micBtn.classList.add('rec');
+        micBtn.setAttribute('aria-pressed','true');
+        statusEl.textContent='Recording…';
+        const b=await recordOnce();
+        micBtn.classList.remove('rec');
+        micBtn.setAttribute('aria-pressed','false');
+        statusEl.textContent='Identifying…';
+        const r=await identifyPipeline(b);
+        setMeta(r);
+        resultCard.hidden=false;
+        statusEl.textContent='Done.';
+      }catch(err){
+        statusEl.textContent='Error: '+(err.message||'Unknown error');
+      }
+    }
+
+    micBtn.addEventListener('click',()=>{ if(mediaRecorder&&mediaRecorder.state==='recording')mediaRecorder.stop(); else go(); });
+    searchBtn.addEventListener('click',async()=>{
+      const q=(lyricQuery.value||'').trim();
+      if(!q) return;
+      statusEl.textContent='Searching lyrics…';
+      try{
+        const r=await findLyricsByText(q);
+        setMeta(r);
+        resultCard.hidden=false;
+        statusEl.textContent='Found by lyrics.';
+      }catch{ statusEl.textContent='No lyrics found.'; }
+    });
+    lyricQuery.addEventListener('keydown',e=>{ if(e.key==='Enter')searchBtn.click(); });
   </script>
 </body>
 </html>
