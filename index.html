@@ -36,170 +36,121 @@
   <header>Debug</header>
   <pre id="debug"></pre>
 </div>
-<pre id="output"></pre>
-<script>
+<pre id="output"></pre><script>
+// Minimal pipeline: AudD (audio fingerprint) → Whisper (/api/transcribe) → AudD lyrics search
 const micBtn = document.getElementById('micBtn');
 const statusEl = document.getElementById('status');
-const output = document.getElementById('output');
-const debugEl = document.getElementById('debug');
-const lyricRescue = document.getElementById('lyricRescue');
-const lyricQuery = document.getElementById('lyricQuery');
-const searchBtn = document.getElementById('searchBtn');
-const langSel = document.getElementById('langSel');
+const resultCard = document.getElementById('resultCard');
+const cover = document.getElementById('cover');
+const songTitle = document.getElementById('songTitle');
+const songArtist = document.getElementById('songArtist');
+const lyricsEl = document.getElementById('lyrics');
+
 let mediaRecorder, chunks = [];
 
-function dbg(label, val){
-  if(!debugEl) return;
-  const s = typeof val === 'string' ? val : (val ? JSON.stringify(val) : '');
-  debugEl.textContent += `[${new Date().toLocaleTimeString()}] ${label}: ${s}\n`;
-  debugEl.scrollTop = debugEl.scrollHeight;
-}
-
-async function recordOnce(ms=8000) {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  return new Promise((resolve, reject) => {
+async function recordOnce(ms=8000){
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true } });
+  return new Promise((resolve, reject)=>{
     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
     chunks = [];
     mediaRecorder.ondataavailable = e => chunks.push(e.data);
     mediaRecorder.onerror = e => reject(e.error || e);
-    mediaRecorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
+    mediaRecorder.onstop = ()=>{
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t=>t.stop());
+      resolve(blob);
+    };
     mediaRecorder.start();
-    setTimeout(() => { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); }, ms);
+    setTimeout(()=>{ if(mediaRecorder && mediaRecorder.state==='recording') mediaRecorder.stop(); }, ms);
   });
 }
 
-async function findLyricsByText(q) {
-  dbg('Lyrics query', q);
+async function identifyWithAudD(blob){
+  const res = await fetch('/api/audd', { method:'POST', headers:{ 'Content-Type':'application/octet-stream' }, body: blob });
+  if (!res.ok) throw new Error('AudD proxy failed: '+res.status);
+  const json = await res.json();
+  if (!json || !json.result) throw new Error(json.error?.error_message || 'No match');
+  return json.result;
+}
+
+async function transcribeServer(blob){
+  const r = await fetch('/api/transcribe', { method:'POST', headers:{ 'Content-Type':'application/octet-stream' }, body: blob });
+  if (!r.ok) throw new Error('Transcribe failed '+r.status);
+  return r.json(); // { text: '...' }
+}
+
+async function findLyricsByText(q){
   const res = await fetch(`/api/audd-lyrics?q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error('Lyrics lookup failed');
   const json = await res.json();
   if (!json.result || !json.result.length) throw new Error('No lyrics found');
-  json.result.sort((a,b)=>(b.lyrics?.length||0)-(a.lyrics?.length||0));
+  // pick the longest lyrics body as a simple confidence proxy
+  json.result.sort((a,b)=> (b.lyrics?.length||0) - (a.lyrics?.length||0));
   return json.result[0];
 }
 
-async function lyricRescueListen(ms=8000) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) throw new Error('Speech recognition not supported');
-  return new Promise((resolve, reject) => {
-    const r = new SR();
-    let transcript = '';
-    r.continuous = false;
-    r.interimResults = true;
-    r.lang = (langSel.value !== 'auto') ? langSel.value : (navigator.language || 'en-US');
-    const timer = setTimeout(()=>{ try{ r.stop(); }catch{} }, ms);
-    r.onresult = e => {
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) transcript += e.results[i][0].transcript + ' ';
-      }
-      dbg('Browser SR heard', transcript.trim());
-    };
-    r.onerror = e => { clearTimeout(timer); reject(new Error(e.error||'Speech error')); };
-    r.onend = () => { clearTimeout(timer); resolve(transcript.trim()); };
-    try { debugEl.textContent = ''; r.start(); statusEl.textContent = 'Listening for lyrics…'; }
-    catch(err){ clearTimeout(timer); reject(err); }
-  });
+function renderResult(r){
+  resultCard.classList.remove('hidden');
+  songTitle.textContent = r.title || 'Unknown title';
+  songArtist.textContent = r.artist || r.artist_name || 'Unknown artist';
+  const img = (r.spotify?.album?.images?.[0]?.url) || r.deezer?.album?.cover_big || (r.apple_music?.artwork?.url||'').replace('{w}x{h}','200x200') || '';
+  if (img) cover.src = img; else cover.removeAttribute('src');
+  lyricsEl.textContent = r.lyrics?.lyrics || r.lyrics || 'No licensed lyrics available.';
 }
 
 function cleanTranscript(t){
-  const fillers = ['uh','um','erm','like','you know','hmm','ah'];
-  let s = String(t||'');
-  for (const f of fillers){ s = s.replaceAll(' '+f+' ',' '); }
-  while (s.indexOf('  ') !== -1) s = s.replaceAll('  ',' ');
-  return s.trim();
+  return String(t||'')
+    .replace(/\b(uh|um|erm|like|you know|hmm|ah)\b/gi,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
 }
 
-async function transcribeServer(blob){
-  const r = await fetch('/api/transcribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: blob
-  });
-  if (!r.ok) throw new Error('Transcribe failed '+r.status);
-  return r.json();
-}
-
-async function identify2(blob) {
-  dbg('Identify','start');
-  try {
-    dbg('AudD request', `audio ${blob.size} bytes`);
-    const res = await fetch('/api/audd', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.result){ dbg('AudD match', `${data.result.title} — ${data.result.artist || data.result.artist_name || ''}`); return data.result; }
-      dbg('AudD response', data?.error?.error_message || 'no result');
-    } else {
-      dbg('AudD http', res.status + ' ' + res.statusText);
-    }
-  } catch(e) { dbg('AudD error', e.message || String(e)); }
-
-  if (lyricRescue.checked) {
-    try {
-      const heardRaw = await lyricRescueListen(11000);
-      const heard = heardRaw;
-      dbg('Browser SR heard', heard || '(empty)');
-      if (heard && heard.split(/\s+/).length >= 3) {
-        const byText = await findLyricsByText(heard);
-        dbg('Lyrics match', `${byText.title || '(lyrics match)'} — ${byText.artist || ''}`);
-        return byText;
-      }
-    } catch(e) { dbg('Lyric rescue error', e.message || String(e)); }
-  }
-
-  try {
-    dbg('Whisper request', `audio ${blob.size} bytes`);
-    const t = await transcribeServer(blob);
-    if (t && t.text) {
-      const text = cleanTranscript(t.text);
-      dbg('Whisper text', text || '(empty)');
-      if (text.split(/\s+/).length >= 3) {
-        const byText = await findLyricsByText(text);
-        dbg('Lyrics match', `${byText.title || '(lyrics match)'} — ${byText.artist || ''}`);
-        return byText;
-      }
-    }
-  } catch(e) { dbg('Whisper error', e.message || String(e)); }
-
-  dbg('Identify','no match');
-  return { title: 'No match', artist: '', lyrics: 'Nothing found' };
-}
-
-async function go() {
-  try {
-    debugEl.textContent = '';
+async function go(){
+  try{
     micBtn.classList.add('rec');
     statusEl.textContent = 'Recording…';
-    const blob = await recordOnce();
+    const blob = await recordOnce(9000);
     micBtn.classList.remove('rec');
-    statusEl.textContent = 'Processing…';
-    const result = await identify2(blob);
-    output.textContent = JSON.stringify(result, null, 2);
-    statusEl.textContent = 'Done';
-  } catch (err) {
-    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.textContent = 'Identifying…';
+
+    // 1) AudD audio fingerprint (primary)
+    try{
+      const a = await identifyWithAudD(blob);
+      renderResult(a);
+      statusEl.textContent = 'Done.';
+      return;
+    }catch(e){ /* fall back to transcription */ }
+
+    // 2) Whisper → lyrics search (fallback)
+    try{
+      statusEl.textContent = 'Transcribing…';
+      const t = await transcribeServer(blob);
+      const text = cleanTranscript(t?.text || '');
+      if (text.split(/\s+/).length >= 3){
+        const l = await findLyricsByText(text);
+        renderResult({ title: l.title || '(lyrics match)', artist: l.artist || '', lyrics: l.lyrics });
+        statusEl.textContent = 'Found by transcription.';
+        return;
+      }
+      throw new Error('Not enough words captured');
+    }catch(e){
+      resultCard.classList.remove('hidden');
+      songTitle.textContent = 'No match';
+      songArtist.textContent = '';
+      cover.removeAttribute('src');
+      lyricsEl.textContent = 'Couldn’t identify from audio or lyrics.';
+      statusEl.textContent = 'Tap the mic to try again.';
+    }
+  }catch(err){
+    statusEl.textContent = 'Error: ' + (err.message || 'Unknown error');
   }
 }
 
-searchBtn.addEventListener('click', async () => {
-  const q = lyricQuery.value.trim();
-  if (!q) return;
-  statusEl.textContent = 'Searching lyrics…';
-  try {
-    const r = await findLyricsByText(q);
-    output.textContent = JSON.stringify(r, null, 2);
-    statusEl.textContent = 'Found by lyrics.';
-  } catch(e) {
-    statusEl.textContent = 'No lyrics found.';
-  }
+micBtn.addEventListener('click', ()=>{
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  else go();
 });
-
-micBtn.onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-  } else {
-    go();
-  }
-};
 </script>
+
 </body>
 </html>
