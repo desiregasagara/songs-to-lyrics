@@ -1,5 +1,5 @@
 {
-  "name": "hum-to-lyrics",
+  "name": "Song search",
   "private": true,
   "version": "1.0.0",
   "description": "Netlify functions for AudD/ACRCloud proxy",
